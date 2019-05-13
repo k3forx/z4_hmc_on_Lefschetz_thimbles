@@ -1,0 +1,5 @@
+generate_thimble
+*.o
+*.pdf
+*.out
+__pycache__
