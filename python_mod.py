@@ -31,3 +31,7 @@ class Takagi():
         # Now A = np.dot(U, np.dot(np.diag(np.sqrt(lam)),U.T))
 
         return np.diag(np.sqrt(lam)), U
+
+
+def calc_inverse_matrix(matrix):
+    return np.linalg.inv(matrix)
