@@ -9,7 +9,7 @@ module sub_generate_thimble
 
 contains
 
-subroutine make_K_matrix(K,z)
+subroutine make_complex_symmetric_matrix(K,z)
   implicit none
   complex(DP),intent(inout) :: K(:,:)
   complex(DP),intent(in) :: z
@@ -19,56 +19,19 @@ subroutine make_K_matrix(K,z)
   return
 end subroutine
 
-subroutine calc_diag_matrix(K, kap)
+subroutine takagi_factorization(diag, vec, K)
   use forpy_mod
   implicit none
   complex(DP),intent(in) :: K(:,:)
-  real(DP),dimension(:,:),pointer,intent(out) :: kap
-
-  integer :: ierr
-  type(module_py) :: python_mod
-  type(ndarray) :: nd_K, nd_kap
-  type(tuple) :: arg
-  type(list) :: paths
-  type(object) :: ret
-
-  ierr = forpy_initialize()
-  ierr = get_sys_path(paths)
-  ierr = paths%append(".")
-
-  ierr = import_py(python_mod, "python_mod")
-
-  ierr = ndarray_create(nd_K,K)
-  ierr = tuple_create(arg,1)
-  ierr = arg%setitem(0,nd_K)
-
-  ierr = call_py(ret,python_mod,"takagi_factorization_diag",arg)
-  ierr = cast(nd_kap,ret)
-  ierr = nd_kap%get_data(kap)
-
-  call python_mod%destroy
-  call nd_K%destroy
-  call nd_kap%destroy
-  call arg%destroy
-  call paths%destroy
-  call ret%destroy
-  call forpy_finalize()
-
-  return
-end subroutine
-
-subroutine calc_ortho_vec(K,vec)
-  use forpy_mod
-  implicit none
-  complex(DP),intent(in) :: K(:,:)
+  real(DP),dimension(:,:),pointer,intent(out) :: diag
   complex(DP),dimension(:,:),pointer,intent(out) :: vec
 
   integer :: ierr
   type(module_py) :: python_mod
-  type(ndarray) :: nd_K, nd_vec
+  type(ndarray) :: nd_mat, nd_diag, nd_vec
   type(tuple) :: arg
   type(list) :: paths
-  type(object) :: ret
+  type(object) :: res_takagi, attr
 
   ierr = forpy_initialize()
   ierr = get_sys_path(paths)
@@ -76,37 +39,56 @@ subroutine calc_ortho_vec(K,vec)
 
   ierr = import_py(python_mod, "python_mod")
 
-  ierr = ndarray_create(nd_K,K)
+  ierr = ndarray_create(nd_mat, K)
   ierr = tuple_create(arg,1)
-  ierr = arg%setitem(0,nd_K)
+  ierr = arg%setitem(0, nd_mat)
 
-  ierr = call_py(ret,python_mod,"takagi_factorization_ortho_vec",arg)
-  ierr = cast(nd_vec,ret)
+  !
+  ! Takagi factorization via Python module
+  !
+  ierr = call_py(res_takagi, python_mod, "Takagi", arg)
+
+  !
+  ! get diagonal matrix from 'res_takagi' object
+  !
+  ierr = res_takagi%getattribute(attr, "diag")
+  ierr = cast(nd_diag, attr)
+  ierr = nd_diag%get_data(diag)
+  call attr%destroy
+
+  !
+  ! get orthonormal vector from 'res_takagi' object
+  !
+  ierr = res_takagi%getattribute(attr, "ortho_vec")
+  ierr = cast(nd_vec, attr)
   ierr = nd_vec%get_data(vec)
+  call attr%destroy
 
   call python_mod%destroy
-  call nd_K%destroy
+  call nd_mat%destroy
+  call nd_diag%destroy
   call nd_vec%destroy
   call arg%destroy
   call paths%destroy
-  call ret%destroy
+  call res_takagi%destroy
+
   call forpy_finalize()
 
   return
 end subroutine
 
-subroutine set_init_cond(z, tvec, z_sig, vec, kap, uni, t_init)
+subroutine set_init_cond(z, tvec, z_sig, vec, kap, t_init)
   implicit none
-  complex(DP), intent(in) :: z_sig,vec(:)
-  real(DP), intent(in) :: uni(:),kap(:,:),t_init
+  complex(DP), intent(in) :: z_sig,vec(:,:)
+  real(DP), intent(in) :: kap(:,:),t_init
   complex(DP), intent(inout) :: z,tvec(:)
   complex(DP) :: sum_grad
   integer :: i
 
   sum_grad = cmplx(0.0_DP, 0.0_DP)
   do i = 1, 1
-    sum_grad = sum_grad + vec(i) * exp(kap(i,i)*t_init) * uni(i)
-    tvec(i) = vec(i) * exp(kap(i,i)*t_init)
+    sum_grad = sum_grad + vec(i,i) * exp(kap(i,i)*t_init)
+    tvec(i) = vec(i,i) * exp(kap(i,i)*t_init)
   end do
 
   z = z_sig + sum_grad
@@ -184,65 +166,61 @@ program generate_thimble
   implicit none
   real(DP) :: t
   complex(DP) :: z0,z1
+  complex(DP) :: tvec0(1),tvec1(1)
+
   real(DP),dimension(:,:),pointer :: kap
-  complex(DP) :: vec(1),tvec0(1),tvec1(1)
-  real(DP) :: uni(1), w
+  complex(DP),dimension(:,:),pointer :: vec
+
+  real(DP) :: w
   complex(DP) :: z_sig,K_mat(1,1)
 
   integer :: itre
-  real(DP) :: h
+  real(DP) :: dt
 
   integer :: ii,iout
 
   z_sig = cmplx(-0.9749217865146699_DP, -0.5395376217014486_DP)
 
   !
-  ! make matrix (K_mat) and calculate diagonal matrix (kappa) and orthonormal vector (vec)
+  ! make matrix "K_mat" and perform takagi factorization.
+  ! result of it are stored in "kap" and "vec"
   !
-  call make_K_matrix(K_mat,z_sig)
-  call calc_diag_matrix(K_mat,kap)
-  ! call calc_ortho_vec(K_mat,vec)
-  ! write(*,*) vec
-
-  uni(1) = 1.0_DP
-  vec(1) = cmplx(9.6035692459165345E-01, -2.7877334411464305E-01)
+  call make_complex_symmetric_matrix(K_mat,z_sig)
+  call takagi_factorization(kap, vec, conjg(K_mat))
 
   t = -5.0_DP
-  call set_init_cond(z0, tvec0, z_sig, vec, kap, uni, t)
+  call set_init_cond(z0, tvec0, z_sig, vec, kap, t)
 
   itre = 1000000
-  h = 0.00001_DP
-  ! itre = 100
-  ! h = 0.1_DP
+  dt = 0.00001_DP
 
-  iout = 99
-  open(iout,file='thimble_generated_by_runge_kutta.dat',status='replace',form='formatted')
-  write(iout,'(3ES24.15)') t,z0,tvec0(1)
+  !iout = 99
+  !open(iout,file='thimble_generated_by_runge_kutta.dat',status='replace',form='formatted')
+  !write(iout,'(3ES24.15)') t,z0,tvec0(1)
 
   do ii = 1, itre
     !
     ! runge kuatta method (4th order)
     !
-    call runge_kutta_new_config(z1,z0,h)
-    call runge_kutta_new_vector(tvec1,z0,tvec0,h)
-
-    write(*,'(5ES24.15)') t,z1,tvec1(1)
-    ! write(*,'(3ES24.15)') t, conjg(action_val(z1,1)) - tvec1(1)*kap(1,1)
+    call runge_kutta_new_config(z1,z0,dt)
+    call runge_kutta_new_vector(tvec1,z0,tvec0,dt)
 
     !
     ! update variable
     !
-    t = t + h
+    t = t + dt
     z0 = z1
     tvec0(:) = tvec1(:)
 
-    write(iout,'(5ES24.15)') t,z0,tvec0(1)
+    write(*,'(5ES24.15)') t,z1,tvec1(1)
+    ! write(*,'(3ES24.15)') t, conjg(action_val(z1,1)) - tvec1(1)*kap(1,1)
+    ! write(iout,'(5ES24.15)') t,z0,tvec0(1)
 
     w = weight(t,z0)
-    if (w <= 1E-10) stop 'weight is small than 10^(-10)'
 
+    if (w < 1E-20) stop 'weight is small than 10^(-20)'
   enddo
-  close(iout)
+  !close(iout)
 
   stop
 end program

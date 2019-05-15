@@ -4,7 +4,7 @@ config=`python3-config --ldflags`
 all : generate_thimble
 
 generate_thimble : forpy_mod.F90 generate_thimble.F90
-#	$(FC) -c forpy_mod.F90
+	$(FC) -c forpy_mod.F90
 	$(FC) generate_thimble.F90 forpy_mod.o $(config) -o $@
 
 # cooling : thimble_cooling_z4.f90
