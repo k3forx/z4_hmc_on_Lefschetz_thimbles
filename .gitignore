@@ -1,4 +1,5 @@
 generate_thimble
+hmc_on_thimble
 *.o
 *.pdf
 *.out
