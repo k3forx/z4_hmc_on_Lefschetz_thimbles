@@ -4,3 +4,5 @@ hmc_on_thimble
 *.pdf
 *.out
 __pycache__
+*/
+*.ipynb
