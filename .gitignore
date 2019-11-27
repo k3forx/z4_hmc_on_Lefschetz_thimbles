@@ -1,5 +1,7 @@
 generate_thimble
 hmc_on_thimble
+main
+HMC_PARAM
 *.o
 *.pdf
 *.out
