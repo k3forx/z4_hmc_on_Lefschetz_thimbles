@@ -97,18 +97,18 @@ subroutine find_next_candidate(dtau, t_init, ori0, t0, z0, p0, tvec0, inv0, cp, 
 
   error = 1.0_DP
   t0_tmp = t0
-  ori0_tmp = ori0
+  ori1 = ori0
 
   do while (error > 1E-10)
     !
     ! set initial condition z_i(t_0) and solve flow eq. to calculate z_i[e_k, t'_k]
     !
-    call set_init_cond(z_tmp, tvec_tmp, cp, t_init, ori0_tmp)
+    call set_init_cond(z_tmp, tvec_tmp, cp, t_init, ori0)
     call solve_flow_eq(z_tmp, z1, tvec_tmp, tvec1, t0_tmp)
     call calc_inverse_matrix(tvec1, inv1)
+    ! write(*,'(10ES24.15)') t0_tmp, z0, z1, z0-z1
 
-    ! write(*,'("before ",200ES24.15)') ori0_tmp, t0_tmp, error, z1, p1, tvec1, inv1
-    ! write(*,'("before", 10ES24.15)') ori0_tmp, t0_tmp, z0, p0, tvec0, inv0
+    write(*,'("before ",20ES24.15)') ori0, t0_tmp, error, z1, p1, tvec1, inv1
 
     !
     ! calculate candidate of time t'_(k+1)
@@ -118,39 +118,36 @@ subroutine find_next_candidate(dtau, t_init, ori0, t0, z0, p0, tvec0, inv0, cp, 
     if (t1 < 0.0_DP) exit
 
     !
-    ! calculate candidate of oriantation vector e_(k+1)
-    !
-    ori1 = ori0_tmp + prod - ori0*cp%kap*(t1 - t0_tmp)
-
-    !
     ! evaluate error
     !
-    p1 = tvec0*(ori1 - ori0_tmp + ori0*cp%kap*(t1 - t0_tmp))
+    p1 = tvec0*ori0*cp%kap*(t1 - t0_tmp)
     error = p1*conjg(p1)
 
     !
     ! update orientation vector and time
     !
-    ori0_tmp = ori1
     t0_tmp = t1
 
-    ! write(*,'("after  ",10ES24.15)') ori0_tmp, t0_tmp, error, z1, tvec1
+    write(*,'("after  ",20ES24.15)') ori0, t0_tmp, error, z1, p1, tvec1, inv1
   end do
 
   if (t1 < 0.0_DP) then
-    call itrerate_calc_candidate_time(t1, z0, z1, p0, tvec0, tvec1, inv0, dtau, cp, consts(1), ori0_tmp)
-    call set_init_cond(z_tmp, tvec_tmp, cp, t_init, ori0_tmp)
+    write(*,'("ANOTHER ITERATION STARTS !!!")')
+    call itrerate_calc_candidate_time(t1, z0, z1, p0, tvec0, tvec1, inv0, dtau, cp, consts(1), ori0)
+    call set_init_cond(z_tmp, tvec_tmp, cp, t_init, ori0)
     call solve_flow_eq(z_tmp, z1, tvec_tmp, tvec1, t1)
-
     call calc_inverse_matrix(tvec1, inv1)
+
+    consts(1) = 2.0_DP*aimag(inv0*(z0 - z1))/dtau**2
     consts(2) = 2.0_DP*aimag(inv1*(p1 - 0.5_DP*dtau*conjg(action_val(z1, 1))))/dtau
     p1 = p1 - 0.5_DP*dtau*conjg(action_val(z1, 1)) - 0.5_DP*dtau*zi*(tvec1*consts(2))
 
     ! write(*,'(20ES24.15)') z1, z0 + dtau*p0 - 0.5_DP*dtau**2*conjg(action_val(z0, 1)) - 0.5_DP*dtau**2*zi*tvec0*consts(1)
     ! write(*,'("after  ",10ES24.15)') ori0_tmp, t0_tmp, error, z1, tvec1, p1
-    write(*,'("config_and_force", 20ES24.15)') &
-      &z0, dtau*p0 - 0.5_DP*dtau**2*conjg(action_val(z0, 1)), -0.5_DP*dtau**2*zi*tvec0*consts(1), z1
-
+  write(*,'("config_and_force", 40ES24.15)') &
+    &z0, dtau*p0 - 0.5_DP*dtau**2*conjg(action_val(z0, 1)), -0.5_DP*dtau**2*zi*tvec0*consts(1), z1
+  write(*,'("error ",10ES24.15)') &
+    &z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)) + 0.5_DP*dtau**2*zi*tvec0*consts(1)
     return
   end if
 
@@ -169,8 +166,11 @@ subroutine find_next_candidate(dtau, t_init, ori0, t0, z0, p0, tvec0, inv0, cp, 
   consts(2) = 2.0_DP*aimag(inv1*(p1 - 0.5_DP*dtau*conjg(action_val(z1, 1))))/dtau
   p1 = p1 - 0.5_DP*dtau*conjg(action_val(z1, 1)) - 0.5_DP*dtau*zi*(tvec1*consts(2))
 
-  write(*,'("config_and_force", 20ES24.15)') &
-    &z0, dtau*p0 - 0.5_DP*dtau**2*conjg(action_val(z0, 1)), -0.5_DP*dtau**2*zi*tvec0*consts(1), z1
+  write(*,'("config_and_force", 40ES24.15)') &
+    &z0, dtau*p0 - 0.5_DP*dtau**2*conjg(action_val(z0, 1)), -0.5_DP*dtau**2*zi*tvec0*consts(1),&
+    &(dtau*p0 - 0.5_DP*dtau**2*conjg(action_val(z0, 1)))/tvec0, tvec0
+  write(*,'("error ",10ES24.15)') &
+    &z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)) + 0.5_DP*dtau**2*zi*tvec0*consts(1)
 
   return
 end subroutine
@@ -183,16 +183,16 @@ subroutine itrerate_calc_candidate_time(t_cand, z0, z1, p0, tvec0, tvec1, inv0, 
   real(DP), intent(inout) :: lamr, t_cand
   type(critical_point), intent(in) :: cp
   complex(DP) :: z_init, tvec_init
-  real(DP) :: error, dt, t1, d0, d1
-  real(DP) :: t_init = -5.0_DP
+  real(DP) :: error, dt, t1, d0, d1, t_store
+  real(DP), parameter :: t_init = -5.0_DP
   integer :: iter
 
   error = abs(z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)))
   dt = 0.001_DP
-  t_cand = -5.0_DP
+  t_cand = t_init
   lamr = 0.0_DP
 
-  d0 = abs(- dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1) + 0.5_DP*dtau**2*zi*tvec0*lamr))
+  d0 = abs(- dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)) + 0.5_DP*dtau**2*zi*tvec0*lamr)
 
   do iter = 1, 100000
     call calc_candidate_time(t_cand, t1, dt, lamr, dtau, z0, p0, tvec0, inv0, cp, ori)
@@ -201,33 +201,36 @@ subroutine itrerate_calc_candidate_time(t_cand, z0, z1, p0, tvec0, tvec1, inv0, 
     call solve_flow_eq(z_init, z1, tvec_init, tvec1, t_cand)
 
     lamr = 2.0_DP*aimag(inv0*(z0 - z1))/dtau**2
-    d1 = abs(z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1) + 0.5_DP*dtau**2*zi*tvec0*lamr))
-    write(*,'(I10, 10ES24.15)') iter, t_cand, lamr, z1, d0, d1
+    d1 = abs(z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)) + 0.5_DP*dtau**2*zi*tvec0*lamr)
+    write(*,'("iter end", I10, 10ES24.15)') iter, t_cand, lamr, z1, d0, d1
 
-    if (abs(d1 - d0) < 0.0000001_DP) exit
+    if (abs(d1 - d0) < 0.0000000001_DP) exit
 
-    t_cand = t_cand - 10.0_DP*dt
-    dt = dt * 0.5
+    t_store = t_cand
+    t_cand = t_cand - dt
+    dt = dt * 0.1_DP
     d0 = d1
+
   end do
+
+  t_cand = t_store
 
   return
 end subroutine
 
 subroutine calc_candidate_time(t0, t1, dt, lamr, dtau, z0, p0, tvec0, inv0, cp, ori)
   implicit none
-  real(DP), intent(inout) :: t0, t1
-  real(DP), intent(in) :: lamr, dtau
+  real(DP), intent(inout) :: t0, t1, dt
+  real(DP), intent(in) :: lamr, dtau, ori
   complex(DP), intent(in) :: z0, p0, tvec0, inv0
   type(critical_point), intent(in) :: cp
 
-  real(DP) :: t_init, ori, dt
+  real(DP) :: t_init, t_store
   real(DP) :: d0, d1
   integer :: iter
   complex(DP) :: z_init, tvec_init, z1, tvec1
 
   t_init = -5.0_DP
-  dt = 0.001_DP
 
   d0 = 1.0_DP
   d1 = 0.0_DP
@@ -237,20 +240,22 @@ subroutine calc_candidate_time(t0, t1, dt, lamr, dtau, z0, p0, tvec0, inv0, cp, 
   do while (d1 - d0 <= 0.0_DP)
     call set_init_cond(z_init, tvec_init, cp, t_init, ori)
     call solve_flow_eq(z_init, z1, tvec_init, tvec1, t0)
-    d0 = abs(z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1) + 0.5_DP*dtau**2*zi*tvec0*lamr))
+    d0 = abs(z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)) + 0.5_DP*dtau**2*zi*tvec0*lamr)
 
     t1 = t0 + dt
     call set_init_cond(z_init, tvec_init, cp, t_init, ori)
     call solve_flow_eq(z_init, z1, tvec_init, tvec1, t1)
-    d1 = abs(z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1) + 0.5_DP*dtau**2*zi*tvec0*lamr))
+    d1 = abs(z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)) + 0.5_DP*dtau**2*zi*tvec0*lamr)
 
-    ! write(*,'(I10,10ES24.15)') iter, t1, z1, lamr, d0, d1 - d0
-
+    write(*,'("iter ",I10,10ES24.15)') iter, t0, t1, z1, lamr, d1 - d0
+    t_store = t0
     t0 = t1
     iter = iter + 1
 
     if ((iter > 1E+6) .or. ((d1 - d0) == 0.0_DP)) exit
   end do
+
+  t0 = t_store
 
   return
 end subroutine
@@ -285,9 +290,9 @@ program hmc_on_thimble
 
   call sgrnd(seed)
 
-  cp%val = cmplx(-9.7492178167965704E-01, -5.3953762329131794E-01)
-  cp%vec = cmplx(9.603569245916534E-01, -2.787733441146431E-01)
-  cp%kap = 1.9647512804566389E+00
+  cp%val = cmplx(-0.97492178167965704_DP, -0.53953762329131794_DP)
+  cp%vec = cmplx(0.9603569245916534_DP, -0.2787733441146431_DP)
+  cp%kap = 1.9647512804566389_DP
 
   dtau = 1.0_DP / real(nmd, kind=DP)
 
@@ -321,13 +326,20 @@ program hmc_on_thimble
     ! inv0 = cmplx(6.636523029103592_DP, 2.067352100024538_DP)
 
     ! nmd = 10, after filped
-
     t0 = 2.895307176327715_DP
-    ori0 = -0.9999999999998340_DP
+    ori0 = -1.0_DP
     z0 = cmplx(-0.9904118731657177_DP, -0.5350585012216031_DP)
     p0 = cmplx(-1.663481412407369_DP, 0.4791823624306596_DP)
     tvec0 = cmplx(-0.01561583665344223_DP, 0.004498297031223616_DP)
     inv0 = cmplx(-59.13095526856847_DP, -17.03325966075507_DP)
+
+    ! nmd = 100 before fliped
+    ! ori0 = 1.000000000155394_DP
+    ! t0 = 2.052967345493972_DP
+    ! z0 = cmplx(-0.9719896895069819_DP, -0.5403893689925646_DP)
+    ! p0 = cmplx(-1.665721821561270_DP, 0.4842269473029523_DP)
+    ! tvec0 = cmplx(0.002924105207146364_DP, -0.0008500396349740370_DP)
+    ! inv0 = cmplx(315.1877151371003_DP, 91.62537414871507_DP)
 
     !
     ! Compute initial hamiltonian
@@ -340,6 +352,7 @@ program hmc_on_thimble
     do jstep = 1, nmd
       call set_init_cond(z0, tvec0, cp, t_init, ori0)
       call solve_flow_eq(z0, z1, tvec0, tvec1, t0)
+      write(*,'("config_and_moment",20ES24.15)') ori0, t0, z0, p0, tvec0, inv0
 
       !
       ! calculate distance from critical point
@@ -356,13 +369,13 @@ program hmc_on_thimble
           t0 = t0 - log(dist_from_cp / (abs(z1 - z0) - dist_from_cp)) / cp%kap
           ori0 = - ori0
           write(*,'("FLIPED !!!!")')
-          ! stop
+          stop
         end if
       end if
 
-      write(*,'(10I10)') jstep
+      ! write(*,'(10I10)') jstep
+      if (jstep == 2) stop
       call find_next_candidate(dtau, t_init, ori0, t0, z0, p0, tvec0, inv0, cp, ori1, t1, z1, p1, tvec1, inv1)
-      if (jstep == 1) stop
 
       ori0 = ori1
       t0 = t1
@@ -390,6 +403,7 @@ program hmc_on_thimble
         ori1 = - ori1
       end if
 
+      if (jstep == 2) stop
       call find_next_candidate(dtau, t_init, ori1, t1, z1, p1, tvec1, inv1, cp, ori2, t2, z2, p2, tvec2, inv2)
 
       ori1(:) = ori2(:)
@@ -444,3 +458,6 @@ program hmc_on_thimble
 
   stop
 end program
+
+
+
