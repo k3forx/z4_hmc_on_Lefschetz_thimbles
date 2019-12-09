@@ -33,5 +33,23 @@ class Takagi():
         return np.diag(np.sqrt(lam)), U
 
 
-def calc_inverse_matrix(matrix):
+def calc_inverse(matrix):
     return np.linalg.inv(matrix)
+
+
+if __name__ == "__main__":
+    A = np.zeros((2, 2))
+    C = np.zeros((2, 1))
+    A[0][0] = -6.431226069334905E-02
+    A[0][1] = 1.837224583330310E-02
+    A[1][0] = 2.248798962682486E-05
+    A[1][1] = 7.806660607457163E-05
+    C[0][0] = 1.495610579275029E-01
+    C[1][0] = -4.308278981852715E-02
+    B = calc_inverse(A)
+    print(B)
+    print(np.dot(B, A))
+    print(-np.dot(B, C))
+
+    # -6.431226069334905E-02      2.248798962682486E-05   7.806660607457163E-05
+    # 1.495610579275029E-01  -4.308278981852715E-02

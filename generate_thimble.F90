@@ -1,20 +1,19 @@
 module sub_generate_thimble
+  use constants_mod
   implicit none
-  integer, parameter :: DP=kind(1.0d0)
-  real(DP), parameter :: PI=3.14159265359_DP
-  complex(DP), parameter :: zi=(0.0_DP,1.0_DP)
-  complex(DP), parameter :: sig=(1.0_DP, 0.0_DP)
-  complex(DP), parameter :: lam=(0.333333333333333_DP, 0.0_DP)
-  complex(DP), parameter :: exh=(1.0_DP, 1.0_DP)
+  type critical_point
+    complex(DP) :: val, vec
+    real(DP) :: kap
+  end type
 
 contains
 
-subroutine make_complex_symmetric_matrix(K,z)
+subroutine make_complex_symmetric_matrix(K, z)
   implicit none
   complex(DP),intent(inout) :: K(:,:)
-  complex(DP),intent(in) :: z
+  complex(DP),intent(in) :: z(:)
 
-  K(:,:) = sig + 3.0_DP*lam*z**2
+  K(1,1) = sig + 3.0_DP*lam*z(1)**2
 
   return
 end subroutine
@@ -77,29 +76,22 @@ subroutine takagi_factorization(diag, vec, K)
   return
 end subroutine
 
-subroutine set_init_cond(z, tvec, z_sig, vec, kap, t_init)
+subroutine set_init_cond(z, tvec, cp, t_init, ori)
   implicit none
-  complex(DP), intent(in) :: z_sig,vec(:,:)
-  real(DP), intent(in) :: kap(:,:),t_init
-  complex(DP), intent(inout) :: z,tvec(:)
-  complex(DP) :: sum_grad
-  integer :: i
+  type(critical_point), intent(in) :: cp
+  real(DP), intent(in) :: ori, t_init
+  complex(DP), intent(inout) :: z, tvec
 
-  sum_grad = cmplx(0.0_DP, 0.0_DP)
-  do i = 1, 1
-    sum_grad = sum_grad + vec(i,i) * exp(kap(i,i)*t_init)
-    tvec(i) = vec(i,i) * exp(kap(i,i)*t_init)
-  end do
-
-  z = z_sig + sum_grad
+  z = cp%val + cp%vec*exp(cp%kap*t_init)*ori
+  tvec = cp%vec*exp(cp%kap*t_init)*ori
 
   return
 end subroutine
 
-function action_val(z,ord) result (S)
+function action_val(z, ord) result (S)
   implicit none
-  complex(DP),intent(in) :: z
-  integer,intent(in) :: ord
+  complex(DP), intent(in) :: z
+  integer, intent(in) :: ord
   complex(DP) :: S
 
   if (ord == 0) then
@@ -113,11 +105,11 @@ function action_val(z,ord) result (S)
   return
 end function
 
-subroutine runge_kutta_new_config(z1,z0,h)
+subroutine runge_kutta_new_config(z1, z0, h)
   implicit none
-  real(DP),intent(in) :: h
-  complex(DP),intent(in) :: z0
-  complex(DP),intent(out) :: z1
+  real(DP), intent(in) :: h
+  complex(DP), intent(in) :: z0
+  complex(DP), intent(out) :: z1
   complex(DP) :: k1,k2,k3,k4
   integer,parameter :: ord=1
 
@@ -134,22 +126,22 @@ end subroutine
 subroutine runge_kutta_new_vector(tvec1,z0,tvec0,h)
   implicit none
   real(DP),intent(in) :: h
-  complex(DP),intent(in) :: z0,tvec0(:)
-  complex(DP),intent(out) :: tvec1(:)
+  complex(DP),intent(in) :: z0, tvec0
+  complex(DP),intent(out) :: tvec1
   complex(DP) :: k1,k2,k3,k4
   integer,parameter :: ord=2
 
-  k1 = h * conjg(tvec0(1) * action_val(z0,ord))
-  k2 = h * conjg(tvec0(1) * action_val(z0 + 0.5_DP*k1, ord))
-  k3 = h * conjg(tvec0(1) * action_val(z0 + 0.5_DP*k2, ord))
-  k4 = h * conjg(tvec0(1) * action_val(z0 + k3, ord))
+  k1 = h * conjg(tvec0 * action_val(z0, ord))
+  k2 = h * conjg(tvec0 * action_val(z0 + 0.5_DP*k1, ord))
+  k3 = h * conjg(tvec0 * action_val(z0 + 0.5_DP*k2, ord))
+  k4 = h * conjg(tvec0 * action_val(z0 + k3, ord))
 
-  tvec1(:) = tvec0(:) + (k1 + 2.0_DP*k2 + 2.0_DP*k3 + k4)/6.0_DP
+  tvec1 = tvec0 + (k1 + 2.0_DP*k2 + 2.0_DP*k3 + k4)/6.0_DP
 
   return
 end subroutine
 
-function weight(t,z) result(w)
+function weight(t, z) result(w)
   implicit none
   real(DP),intent(in) :: t
   complex(DP),intent(in) :: z
@@ -164,63 +156,56 @@ end module
 program generate_thimble
   use sub_generate_thimble
   implicit none
-  real(DP) :: t
-  complex(DP) :: z0,z1
-  complex(DP) :: tvec0(1),tvec1(1)
+  type(critical_point) :: cp
+  real(DP) :: t_init, dt
+  real(DP) :: ori
+  complex(DP) :: z0, z1
+  complex(DP) :: tvec0, tvec1
 
-  real(DP),dimension(:,:),pointer :: kap
-  complex(DP),dimension(:,:),pointer :: vec
+  integer :: itre, ii
 
-  real(DP) :: w
-  complex(DP) :: z_sig,K_mat(1,1)
+  cp%val = cmplx(-9.7492178167965704E-01, -5.3953762329131794E-01)
+  cp%vec = cmplx(9.603569245916534E-01, -2.787733441146431E-01)
+  cp%kap = 1.9647512804566389E+00
 
-  integer :: itre
-  real(DP) :: dt
-
-  integer :: ii,iout
-
-  z_sig = cmplx(-0.9749217865146699_DP, -0.5395376217014486_DP)
-
-  !
-  ! make matrix "K_mat" and perform takagi factorization.
-  ! result of it are stored in "kap" and "vec"
-  !
-  call make_complex_symmetric_matrix(K_mat,z_sig)
-  call takagi_factorization(kap, vec, conjg(K_mat))
-
-  t = -5.0_DP
-  call set_init_cond(z0, tvec0, z_sig, vec, kap, t)
+  t_init = -5.0_DP
+  ori = -1.0_DP
+  call set_init_cond(z0, tvec0, cp, t_init, ori)
 
   itre = 1000000
-  dt = 0.00001_DP
+  dt = 0.0001_DP
 
   !iout = 99
   !open(iout,file='thimble_generated_by_runge_kutta.dat',status='replace',form='formatted')
   !write(iout,'(3ES24.15)') t,z0,tvec0(1)
+  ! z =cmplx(-1.156612721706754E+00,  -4.871822453611159E-01)
+  ! dist0 = abs(z - z0(1))
 
   do ii = 1, itre
     !
     ! runge kuatta method (4th order)
     !
-    call runge_kutta_new_config(z1,z0,dt)
-    call runge_kutta_new_vector(tvec1,z0,tvec0,dt)
+    call runge_kutta_new_config(z1, z0, dt)
+    call runge_kutta_new_vector(tvec1, z0, tvec0, dt)
+    write(*,'(10ES24.15)') t_init+dt*itre, z1, tvec1
+    ! write(*,'(10ES24.15)') t + 5.0_DP, z1(:), dist0 - dist1
+    ! if (dist0 - dist1 < 0) stop
 
     !
     ! update variable
     !
-    t = t + dt
     z0 = z1
-    tvec0(:) = tvec1(:)
+    tvec0 = tvec1
 
-    write(*,'(5ES24.15)') t,z1,tvec1(1)
-    ! write(*,'(3ES24.15)') t, conjg(action_val(z1,1)) - tvec1(1)*kap(1,1)
+    ! write(*,'(5ES24.15)') t,z1(1),tvec1(1,1)
+    ! write(*,'(3ES24.15)') t, conjg(action_val(z1,1)) - tvec1(1,1)*kap(1,1)
     ! write(iout,'(5ES24.15)') t,z0,tvec0(1)
 
-    w = weight(t,z0)
+    ! w = weight(t, z1)
+    ! if (w < 1.0E-20) stop
 
-    if (w < 1E-20) stop 'weight is small than 10^(-20)'
   enddo
-  !close(iout)
+  ! close(iout)
 
   stop
 end program
