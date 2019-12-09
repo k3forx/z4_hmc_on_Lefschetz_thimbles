@@ -266,12 +266,12 @@ program hmc_on_thimble
   use hmc_on_thimble_mod
   implicit none
   type(critical_point) :: cp
-  real(DP) :: ori0, ori1, ori2, ori0_tmp
-  real(DP) :: t_init, t0, t1, t2, t0_tmp
-  complex(DP) :: z0, z1, z2, z0_tmp
-  complex(DP) :: tvec0, tvec1, tvec2, tvec0_tmp
-  complex(DP) :: inv0, inv1, inv2, inv0_tmp
-  complex(DP) :: p0, p1, p2, p0_tmp
+  real(DP) :: ori0, ori1, ori2, ori3, ori0_tmp
+  real(DP) :: t_init, t0, t1, t2, t3, t0_tmp
+  complex(DP) :: z0, z1, z2, z3, z0_tmp
+  complex(DP) :: tvec0, tvec1, tvec2, tvec3, tvec0_tmp
+  complex(DP) :: inv0, inv1, inv2, inv3, inv0_tmp
+  complex(DP) :: p0, p1, p2, p3, p0_tmp
   real(DP) :: rho, h0, h1, h2, rand, pacc
   integer :: ndim, ii
 
@@ -326,20 +326,12 @@ program hmc_on_thimble
     ! inv0 = cmplx(6.636523029103592_DP, 2.067352100024538_DP)
 
     ! nmd = 10, after filped
-    t0 = 2.895307176327715_DP
-    ori0 = -1.0_DP
-    z0 = cmplx(-0.9904118731657177_DP, -0.5350585012216031_DP)
-    p0 = cmplx(-1.663481412407369_DP, 0.4791823624306596_DP)
-    tvec0 = cmplx(-0.01561583665344223_DP, 0.004498297031223616_DP)
-    inv0 = cmplx(-59.13095526856847_DP, -17.03325966075507_DP)
-
-    ! nmd = 100 before fliped
-    ! ori0 = 1.000000000155394_DP
-    ! t0 = 2.052967345493972_DP
-    ! z0 = cmplx(-0.9719896895069819_DP, -0.5403893689925646_DP)
-    ! p0 = cmplx(-1.665721821561270_DP, 0.4842269473029523_DP)
-    ! tvec0 = cmplx(0.002924105207146364_DP, -0.0008500396349740370_DP)
-    ! inv0 = cmplx(315.1877151371003_DP, 91.62537414871507_DP)
+    ! t0 = 2.895307176327715_DP
+    ! ori0 = -1.0_DP
+    ! z0 = cmplx(-0.9904118731657177_DP, -0.5350585012216031_DP)
+    ! p0 = cmplx(-1.663481412407369_DP, 0.4791823624306596_DP)
+    ! tvec0 = cmplx(-0.01561583665344223_DP, 0.004498297031223616_DP)
+    ! inv0 = cmplx(-59.13095526856847_DP, -17.03325966075507_DP)
 
     !
     ! Compute initial hamiltonian
@@ -373,8 +365,7 @@ program hmc_on_thimble
         end if
       end if
 
-      ! write(*,'(10I10)') jstep
-      if (jstep == 2) stop
+      ! if (jstep == 2) stop
       call find_next_candidate(dtau, t_init, ori0, t0, z0, p0, tvec0, inv0, cp, ori1, t1, z1, p1, tvec1, inv1)
 
       ori0 = ori1
@@ -384,39 +375,52 @@ program hmc_on_thimble
       tvec0 = tvec1
       inv0 = inv1
     end do
+    write(*,'("config_and_moment",20ES24.15)') ori0, t0, z0, p0, tvec0, inv0
 
 #ifdef _CHECK_REVERSE
-    p1(:) = -p1(:)
+    ori2 = ori1
+    t2 = t1
+    z2 = z1
+    p2 = -p1
+    tvec2 = tvec1
+    inv2 = inv1
 
     do jstep = 1, nmd
-      p2(:) = p1(:) - 0.5_DP*dtau*conjg(action_val(z1, 1))
-      z2(:) = z1(:) + dtau*p2(:)
-      sum_of_p_and_f = abs(dtau*p2(1))
+      write(*,'("@config_and_moment",20ES24.15)') ori2, t2, z2, p2, tvec2, inv2
+      !
+      ! calculate distance from critical point
+      !
+      ! p1 = p0 - 0.5_DP*dtau*conjg(action_val(z0, 1))
+      ! z1 = z0 + dtau*p1
+      ! sum_of_p_and_f = abs(dtau*p1)
+      ! costheta = real(abs(dtau*p1)*(cp%val - z0)/(abs(cp%val - z0)*dtau*p1), kind=DP)
 
-      dist_from_cp = 0.0_DP
-      do ii = 1, ndim
-        dist_from_cp = dist_from_cp + abs(z1(ii) - cp%val(ii))
-      end do
+      ! dist_from_cp = abs(z0 - cp%val)
 
-      if (dist_from_cp < sum_of_p_and_f) then
-        t1 = t1 - log(dist_from_cp / (abs(z2(1) - z1(1)) - dist_from_cp)) / cp%kap(1,1)
-        ori1 = - ori1
-      end if
+      ! if (0 < costheta .and. costheta < 1) then
+      !   if (dist_from_cp < sum_of_p_and_f) then
+      !     t0 = t0 - log(dist_from_cp / (abs(z1 - z0) - dist_from_cp)) / cp%kap
+      !     ori0 = - ori0
+      !     write(*,'("FLIPED !!!!")')
+      !     stop
+      !   end if
+      ! end if
 
-      if (jstep == 2) stop
-      call find_next_candidate(dtau, t_init, ori1, t1, z1, p1, tvec1, inv1, cp, ori2, t2, z2, p2, tvec2, inv2)
+      call find_next_candidate(dtau, t_init, ori2, t2, z2, p2, tvec2, inv2, cp, ori3, t3, z3, p3, tvec3, inv3)
 
-      ori1(:) = ori2(:)
-      t1 = t2
-      z1(:) = z2(:)
-      p1(:) = p2(:)
-      tvec1(:,:) = tvec2(:,:)
-      inv1(:,:) = inv2(:,:)
-
-      write(*,'(10ES24.15)') t2, ori2, z2, -p2, tvec2
+      ori2 = ori3
+      t2 = t3
+      z2 = z3
+      p2 = p3
+      tvec2 = tvec3
+      inv2 = inv3
     end do
 
-    p2 = -p2
+    h2 = calcu_hamil(z1, p1)
+    write(*,'("@config_and_moment",20ES24.15)') ori2, t2, z2, p2, tvec2, inv2
+    write(*,'(20ES24.15)') z0 - z2, p0 - p2
+    write(*,'("hamil", 10ES24.15)') (1.0_DP/real(nmd, kind=DP))**2, h0, h2, h0 - h2
+
     stop
 #endif
 
