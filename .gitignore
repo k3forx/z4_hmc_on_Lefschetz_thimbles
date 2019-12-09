@@ -2,6 +2,7 @@ generate_thimble
 hmc_on_thimble
 main
 HMC_PARAM
+Makefile
 *.o
 *.pdf
 *.out
