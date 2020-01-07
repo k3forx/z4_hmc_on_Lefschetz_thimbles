@@ -9,3 +9,4 @@ Makefile
 __pycache__
 */
 *.ipynb
+fit.log
