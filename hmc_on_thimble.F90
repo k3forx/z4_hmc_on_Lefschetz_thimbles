@@ -131,6 +131,9 @@ subroutine find_next_candidate(dtau, t_init, ori0, t0, z0, p0, tvec0, inv0, cp, 
     write(*,'("after  ",20ES24.15)') ori0, t0_tmp, error, z1, p1, tvec1, inv1
   end do
 
+  !
+  ! grid search method
+  !
   if (t1 < 0.0_DP) then
     write(*,'("ANOTHER ITERATION STARTS !!!")')
     call itrerate_calc_candidate_time(t1, z0, z1, p0, tvec0, tvec1, inv0, dtau, cp, consts(1), ori0)
@@ -144,10 +147,10 @@ subroutine find_next_candidate(dtau, t_init, ori0, t0, z0, p0, tvec0, inv0, cp, 
 
     ! write(*,'(20ES24.15)') z1, z0 + dtau*p0 - 0.5_DP*dtau**2*conjg(action_val(z0, 1)) - 0.5_DP*dtau**2*zi*tvec0*consts(1)
     ! write(*,'("after  ",10ES24.15)') ori0_tmp, t0_tmp, error, z1, tvec1, p1
-  write(*,'("config_and_force", 40ES24.15)') &
-    &z0, dtau*p0 - 0.5_DP*dtau**2*conjg(action_val(z0, 1)), -0.5_DP*dtau**2*zi*tvec0*consts(1), z1
-  write(*,'("error ",10ES24.15)') &
-    &z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)) + 0.5_DP*dtau**2*zi*tvec0*consts(1)
+    write(*,'("config_and_force", 40ES24.15)') &
+      &z0, dtau*p0 - 0.5_DP*dtau**2*conjg(action_val(z0, 1)), -0.5_DP*dtau**2*zi*tvec0*consts(1), z1, t1
+    write(*,'("error ",10ES24.15)') &
+      &z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)) + 0.5_DP*dtau**2*zi*tvec0*consts(1)
     return
   end if
 
@@ -188,15 +191,14 @@ subroutine itrerate_calc_candidate_time(t_cand, z0, z1, p0, tvec0, tvec1, inv0, 
   integer :: iter
 
   error = abs(z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)))
-  dt = 0.001_DP
+  dt = 0.01_DP
   t_cand = t_init
   lamr = 0.0_DP
 
-  d0 = abs(- dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)) + 0.5_DP*dtau**2*zi*tvec0*lamr)
+  d0 = abs(- dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)))
 
-  do iter = 1, 100000
+  do while (abs(d1 - d0) >= 1E-14)
     call calc_candidate_time(t_cand, t1, dt, lamr, dtau, z0, p0, tvec0, inv0, cp, ori)
-    ! write(*,'(I10,2ES24.15)') iter, t1
     call set_init_cond(z_init, tvec_init, cp, t_init, ori)
     call solve_flow_eq(z_init, z1, tvec_init, tvec1, t_cand)
 
@@ -204,7 +206,7 @@ subroutine itrerate_calc_candidate_time(t_cand, z0, z1, p0, tvec0, tvec1, inv0, 
     d1 = abs(z1 - z0 - dtau*p0 + 0.5_DP*dtau**2*conjg(action_val(z0, 1)) + 0.5_DP*dtau**2*zi*tvec0*lamr)
     write(*,'("iter end", I10, 10ES24.15)') iter, t_cand, lamr, z1, d0, d1
 
-    if (abs(d1 - d0) < 0.0000000001_DP) exit
+    if (abs(d1 - d0) < 1E-14) exit
 
     t_store = t_cand
     t_cand = t_cand - dt
@@ -317,21 +319,30 @@ program hmc_on_thimble
     call calc_inverse_matrix(tvec0, inv0)
     call generate_gaussian_momentum(p0, tvec0, inv0)
 
-    ! nmd = 10, before filped
-    ! t0 = 4.101955441485474_DP
-    ! ori0 = 0.9999999999998608_DP
-    ! z0 = cmplx(-0.8244312014353626_DP, -0.5848296163293969)
-    ! p0 = cmplx(-1.640777687827756_DP, 0.5111208359752036)
-    ! tvec0 = cmplx(0.1373500957597960_DP, -0.04278605125589109_DP)
-    ! inv0 = cmplx(6.636523029103592_DP, 2.067352100024538_DP)
+    ! nmd = 10, before fliped
+    ! ori0 = 1.000000000000000_DP
+    ! t0 = 4.100374401268285_DP
+    ! z0 = cmplx(-0.8248587560409677_DP, -0.5846964407533598_DP)
+    ! p0 = cmplx(-1.640588982374780_DP, 0.5109663777076791_DP)
+    ! tvec0 = cmplx(0.1374207201259041_DP, -0.04280003336325399_DP)
+    ! inv0 = cmplx(6.633322675583814_DP, 2.065968317550841_DP)
 
-    ! nmd = 10, after filped
-    ! t0 = 2.895307176327715_DP
-    ! ori0 = -1.0_DP
-    ! z0 = cmplx(-0.9904118731657177_DP, -0.5350585012216031_DP)
-    ! p0 = cmplx(-1.663481412407369_DP, 0.4791823624306596_DP)
-    ! tvec0 = cmplx(-0.01561583665344223_DP, 0.004498297031223616_DP)
-    ! inv0 = cmplx(-59.13095526856847_DP, -17.03325966075507_DP)
+    ! nmd = 10, after fliped
+    ori0 = -1.000000000000000E+00
+    t0 = 2.908322304880164_DP
+    z0 = cmplx(-0.9908249224939001_DP, -0.5349393609008363_DP)
+    p0 = cmplx(-1.663213881030954_DP, 0.4790086761836458_DP)
+    tvec0 = cmplx(-0.01605274907526825_DP, 0.004623223878681929_DP)
+    inv0 = cmplx(-57.51949068446022_DP, -16.56571978009368_DP)
+    p0 = -p0
+
+    ! nmd = 10, after filped 2
+    ! ori0 = -1.000000000000000_DP
+    ! t0 = 4.446329999999882_DP
+    ! z0 = cmplx(-1.375754293881792_DP, -0.4346375542349374_DP)
+    ! p0 = cmplx(-0.3539262112351909_DP, 0.08270528152578302_DP)
+    ! tvec0 = cmplx(-0.4987677566642592_DP, 0.1165517738483881_DP)
+    ! inv0 = cmplx(-1.901127995314834_DP,  -0.4442545397254464_DP)
 
     !
     ! Compute initial hamiltonian
@@ -361,11 +372,12 @@ program hmc_on_thimble
           t0 = t0 - log(dist_from_cp / (abs(z1 - z0) - dist_from_cp)) / cp%kap
           ori0 = - ori0
           write(*,'("FLIPED !!!!")')
-          stop
+          write(*,'("Fliped_orientatin: ",ES24.15," Approximation_time: ",ES24.15)') ori0, t0
+          ! stop
         end if
       end if
 
-      ! if (jstep == 2) stop
+      if (jstep == 2) stop
       call find_next_candidate(dtau, t_init, ori0, t0, z0, p0, tvec0, inv0, cp, ori1, t1, z1, p1, tvec1, inv1)
 
       ori0 = ori1
@@ -444,21 +456,24 @@ program hmc_on_thimble
 
     end if
 
+    ! write(*,'("hmc_config_and_moment",21ES24.15)') ori1, t1, z1, p1, tvec1, inv1
+
     ori0 = ori1
     t0 = t1
     z0 = z1
     tvec0 = tvec1
 
+    if (ori0 < 0.0_DP) stop
   end do
 
 
   !
   ! Out put result of HMC simulation
   !
-  ! pacc = real(iacc, kind=DP)/itry
-  ! write(*,'("# HMC Metropolis test statistics.")')
-  ! write(*,'("# dt= ",ES14.6," itry =",I10," iacc =",I10," Pacc = ",F10.6)') &
-  !     & dtau,itry,iacc,pacc*100
+  pacc = real(iacc, kind=DP)/itry
+  write(*,'("# HMC Metropolis test statistics.")')
+  write(*,'("# dt= ",ES14.6," itry =",I10," iacc =",I10," Pacc = ",F10.6)') &
+      & dtau,itry,iacc,pacc*100
 
   stop
 end program

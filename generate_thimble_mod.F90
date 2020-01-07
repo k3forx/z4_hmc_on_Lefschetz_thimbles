@@ -55,12 +55,12 @@ subroutine runge_kutta_new_config(z1, z0, h)
   complex(DP) :: k1, k2, k3, k4
   integer, parameter :: ord = 1
 
-  k1 = h * conjg(action_val(z0, ord))
-  k2 = h * conjg(action_val(z0 + 0.5_DP*k1, ord))
-  k3 = h * conjg(action_val(z0 + 0.5_DP*k2, ord))
-  k4 = h * conjg(action_val(z0 + k3, ord))
+  k1 = conjg(action_val(z0, ord))
+  k2 = conjg(action_val(z0 + 0.5_DP*h*k1, ord))
+  k3 = conjg(action_val(z0 + 0.5_DP*h*k2, ord))
+  k4 = conjg(action_val(z0 + h*k3, ord))
 
-  z1 = z0 + (k1 + 2.0_DP*k2 + 2.0_DP*k3 + k4)/6.0_DP
+  z1 = z0 + h*(k1 + 2.0_DP*k2 + 2.0_DP*k3 + k4)/6.0_DP
 
   return
 end subroutine
@@ -70,15 +70,17 @@ subroutine runge_kutta_new_vector(tvec1, z0, tvec0, h)
   real(DP), intent(in) :: h
   complex(DP), intent(in) :: z0, tvec0
   complex(DP), intent(out) :: tvec1
-  complex(DP) :: k1, k2, k3, k4
+  complex(DP) :: k1, k2, k3, k4, z1
   integer, parameter :: ord = 2
 
-  k1 = h * conjg(tvec0 * action_val(z0, ord))
-  k2 = h * conjg(tvec0 * action_val(z0 + 0.5_DP*k1, ord))
-  k3 = h * conjg(tvec0 * action_val(z0 + 0.5_DP*k2, ord))
-  k4 = h * conjg(tvec0 * action_val(z0 + k3, ord))
+  k1 = conjg(action_val(z0, ord) * tvec0)
+  call runge_kutta_new_config(z1, z0, 0.5_DP*h)
+  k2 = conjg(action_val(z1, ord) * (tvec0 + 0.5_DP*h*k1))
+  k3 = conjg(action_val(z1, ord) * (tvec0 + 0.5_DP*h*k2))
+  call runge_kutta_new_config(z1, z0, h)
+  k4 = conjg(action_val(z1, ord) * (tvec0 + h*k3))
 
-  tvec1 = tvec0 + (k1 + 2.0_DP*k2 + 2.0_DP*k3 + k4)/6.0_DP
+  tvec1 = tvec0 + h*(k1 + 2.0_DP*k2 + 2.0_DP*k3 + k4)/6.0_DP
 
   return
 end subroutine
@@ -90,7 +92,7 @@ subroutine solve_flow_eq (z0, z1, tvec0, tvec1, trange)
   real(DP) :: t, dt, w
   integer :: itre, ii
 
-  itre = 10000
+  itre = 10000000
   dt = trange/real(itre, kind=DP)
 
   do ii = 1, itre
@@ -105,9 +107,6 @@ subroutine solve_flow_eq (z0, z1, tvec0, tvec1, trange)
     !
     z0 = z1
     tvec0 = tvec1
-
-    ! w = exp(-real(action_val(z0, 0)))
-    ! if (w <= 1E-20) return
 
   end do
 
