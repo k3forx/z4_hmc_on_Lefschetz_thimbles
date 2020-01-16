@@ -8,16 +8,6 @@ module generate_thimble_mod
 
 contains
 
-! subroutine make_complex_symmetric_matrix(K, z)
-!   implicit none
-!   complex(DP), intent(out) :: K(:,:)
-!   complex(DP), intent(in) :: z(:)
-
-!   K(1,1) = sig + 3.0_DP*lam*z(1)**2
-
-!   return
-! end subroutine
-
 subroutine set_init_cond(z, tvec, cp, t_init, ori)
   implicit none
   type(critical_point), intent(in) :: cp
