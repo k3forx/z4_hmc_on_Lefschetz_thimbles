@@ -26,7 +26,7 @@ class Takagi():
         # T is diagonal but not real.  That is easy to fix by a
         # simple transformation which removes the complex phases
         # from the resulting diagonal matrix.
-        c = np.diag(np.exp(-1j*np.angle(np.diag(T))/2))
+        c = np.diag(np.exp(1j*np.angle(np.diag(T))/2))
         U = np.dot(u, c)
         # Now A = np.dot(U, np.dot(np.diag(np.sqrt(lam)),U.T))
 
