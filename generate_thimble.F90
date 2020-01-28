@@ -10,10 +10,11 @@ contains
 
 subroutine make_complex_symmetric_matrix(K, z)
   implicit none
-  complex(DP),intent(inout) :: K(:,:)
-  complex(DP),intent(in) :: z(:)
+  complex(DP), intent(inout) :: K(:,:)
+  complex(DP), intent(in) :: z
 
-  K(1,1) = sig + 3.0_DP*lam*z(1)**2
+  K(1,1) = sig + 3.0_DP*lam*z**2
+  write(*,'(10ES24.15)') K
 
   return
 end subroutine
@@ -165,6 +166,7 @@ program generate_thimble
   real(DP) :: ori, w
   complex(DP) :: z0, z1
   complex(DP) :: tvec0, tvec1
+  complex(DP) :: K(1,1)
 
   integer :: itre, ii
 
