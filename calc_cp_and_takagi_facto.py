@@ -9,6 +9,7 @@ def main():
     cps = sym.solve(sym.Eq(sym.diff(action)))
 
     for index, cp in enumerate(cps):
+        print(f'Thimble Information related with critical point {index}')
         cp = complex(cps[index])
         print(f'cp{index} = ({cp.real:.16E}, {cp.imag:.16E})')
 
@@ -16,17 +17,29 @@ def main():
         K[0][0] = sym.diff(sym.diff(action)).subs(z, cp)
         print(f'K{index} = ({K[0][0].real:.16E}, {K[0][0].imag:.16E})')
 
-        K = Takagi(K)
-        vec = K.ortho_vec[0][0]
+        factorized_K = Takagi(K)
+        vec = factorized_K.ortho_vec[0][0]
         print(f'vec{index} = ({vec.real:.16E}, {vec.imag:.16E})')
 
-        kappa = K.diag[0][0]
+        kappa = factorized_K.diag[0][0]
+        print(f'kappa{index}: {kappa:.16E}', '\n')
+
+        print(f'Anti-Thimble Information related with critical point {index}')
+        K = np.zeros((1, 1), dtype=np.complex)
+        K[0][0] = -1.0*sym.diff(sym.diff(action)).subs(z, cp)
+        print(f'K{index} = ({K[0][0].real:.16E}, {K[0][0].imag:.16E})')
+
+        factorized_K = Takagi(K)
+        vec = factorized_K.ortho_vec[0][0]
+        print(f'vec{index} = ({vec.real:.16E}, {vec.imag:.16E})')
+
+        kappa = factorized_K.diag[0][0]
         print(f'kappa{index}: {kappa:.16E}', '\n')
 
 
 def set_action(z):
     sig = complex(1.0, 0.0)
-    lam = complex(1/3, 0.0)
+    lam = complex(1.0/3.0, 0.0)
     exh = complex(1.0, 1.0)
     return 0.5*sig*z**2 + 0.25*lam*z**4 + exh*z
 
@@ -55,9 +68,10 @@ class Takagi():
         # T is diagonal but not real.  That is easy to fix by a
         # simple transformation which removes the complex phases
         # from the resulting diagonal matrix.
-        c = np.diag(np.exp(-1j*np.angle(np.diag(T))/2))
+        c = np.diag(np.exp(1j*np.angle(np.diag(T))/2))
         U = np.dot(u, c)
         # Now A = np.dot(U, np.dot(np.diag(np.sqrt(lam)),U.T))
+
         return np.diag(np.sqrt(lam)), U
 
 
